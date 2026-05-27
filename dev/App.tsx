@@ -1,22 +1,18 @@
-import { useState } from 'react'
-import { FileDropZone } from '../src'
+import { ImportForm, type ImportFormSubmitData } from '../src'
+
+// Set VITE_XNAT_BASE_URL in .env.local (e.g. http://localhost:8080) or leave empty
+// to use same-origin requests against an XNAT instance that serves this app.
+const baseUrl = (import.meta.env.VITE_XNAT_BASE_URL as string | undefined) ?? ''
 
 export default function App() {
-  const [files, setFiles] = useState<File[]>([])
+  const handleSubmit = (data: ImportFormSubmitData) => {
+    console.log('Begin Upload', data)
+  }
 
   return (
     <div className="mx-auto max-w-2xl p-8">
       <h1 className="mb-6 text-2xl font-bold text-gray-900">Non-DICOM Importer</h1>
-      <FileDropZone onFiles={setFiles} accept={['.csv', '.json', '.zip']} multiple />
-      {files.length > 0 && (
-        <ul className="mt-4 space-y-1">
-          {files.map((f) => (
-            <li key={f.name} className="text-sm text-gray-600">
-              {f.name}
-            </li>
-          ))}
-        </ul>
-      )}
+      <ImportForm baseUrl={baseUrl} onSubmit={handleSubmit} />
     </div>
   )
 }

@@ -16,6 +16,5 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["src", "dev"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "include": ["src", "dev", "vitest.setup.ts"]
 }
