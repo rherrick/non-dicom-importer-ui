@@ -64,7 +64,7 @@ export function ImportForm({ baseUrl = '', onSubmit, className }: ImportFormProp
         type="button"
         onClick={handleSubmit}
         disabled={!canSubmit}
-        className="self-start rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:hover:bg-gray-300"
+        className="self-start rounded-md bg-blue-600! px-4 py-2 text-sm font-medium text-white! shadow-sm hover:bg-blue-700! focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300! disabled:hover:bg-gray-300! disabled:text-gray-500!"
       >
         Begin Upload
       </button>

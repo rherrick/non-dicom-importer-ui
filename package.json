@@ -4,13 +4,13 @@
   "type": "module",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "import": "./dist/non-dicom-importer.js",
+      "types": "./dist/non-dicom-importer.d.ts"
     },
-    "./style.css": "./dist/index.css"
+    "./style.css": "./dist/non-dicom-importer.css"
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/non-dicom-importer.js",
+  "types": "./dist/non-dicom-importer.d.ts",
   "files": [
     "dist"
   ],

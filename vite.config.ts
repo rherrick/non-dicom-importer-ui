@@ -2,7 +2,22 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import dts from 'vite-plugin-dts'
+import { renameSync } from 'fs'
 import { resolve } from 'path'
+
+// vite-plugin-dts emits index.d.ts based on the entry path, ignoring lib.fileName.
+// Rename it after the build so the .d.ts filename matches the .js / .css files.
+const renameTypesPlugin = () => ({
+  name: 'rename-bundled-dts',
+  closeBundle() {
+    const dist = resolve(import.meta.dirname, 'dist')
+    try {
+      renameSync(`${dist}/index.d.ts`, `${dist}/non-dicom-importer.d.ts`)
+    } catch {
+      // file may not exist on incremental builds or test runs
+    }
+  },
+})
 
 export default defineConfig(({ mode }) => {
   // Read VITE_* vars from .env / .env.local so the dev server can proxy XNAT.
@@ -19,12 +34,13 @@ export default defineConfig(({ mode }) => {
       rollupTypes: true,
       tsconfigPath: './tsconfig.json',
     }),
+    renameTypesPlugin(),
   ],
   build: {
     lib: {
       entry: resolve(import.meta.dirname, 'src/index.ts'),
       formats: ['es'],
-      fileName: 'index',
+      fileName: 'non-dicom-importer',
     },
     rollupOptions: {
       external: ['react', 'react-dom', 'react/jsx-runtime'],

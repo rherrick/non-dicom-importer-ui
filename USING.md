@@ -41,8 +41,8 @@ XNAT pages aren't React apps — they're JSP/HTML with whatever scripts the page
 ```bash
 yarn build
 # Copies needed:
-#   dist/index.js   → /assets/non-dicom-importer-ui/index.js
-#   dist/index.css  → /assets/non-dicom-importer-ui/index.css
+#   dist/non-dicom-importer.js   → /assets/non-dicom-importer-ui/non-dicom-importer.js
+#   dist/non-dicom-importer.css  → /assets/non-dicom-importer-ui/non-dicom-importer.css
 ```
 
 Serve those two files as static assets from XNAT (any path under `webapp/` works).
@@ -52,7 +52,7 @@ Serve those two files as static assets from XNAT (any path under `webapp/` works
 The library bundle is ESM and externalizes React, so the page needs to (a) include React/ReactDOM as ES modules and (b) link them by bare specifier. Modern browsers solve both with an import map:
 
 ```html
-<link rel="stylesheet" href="/assets/non-dicom-importer-ui/index.css">
+<link rel="stylesheet" href="/assets/non-dicom-importer-ui/non-dicom-importer.css">
 
 <div id="importer-root"></div>
 
@@ -70,7 +70,7 @@ The library bundle is ESM and externalizes React, so the page needs to (a) inclu
 <script type="module">
   import React from 'react'
   import { createRoot } from 'react-dom/client'
-  import { ImportForm } from '/assets/non-dicom-importer-ui/index.js'
+  import { ImportForm } from '/assets/non-dicom-importer-ui/non-dicom-importer.js'
 
   const root = createRoot(document.getElementById('importer-root'))
   root.render(
