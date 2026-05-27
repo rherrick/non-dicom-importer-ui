@@ -2,6 +2,8 @@
 
 A React component library for importing non-DICOM data into [XNAT](https://www.xnat.org/). Built as an embeddable ESM bundle so it can drop into XNAT's web UI today and an Electron client later.
 
+For end-to-end integration steps in each supported host (React app, server-rendered JSP/HTML, Electron), see [USING.md](./USING.md).
+
 ## Install
 
 ```bash
