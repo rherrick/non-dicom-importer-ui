@@ -1,10 +1,15 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import dts from 'vite-plugin-dts'
 import { resolve } from 'path'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  // Read VITE_* vars from .env / .env.local so the dev server can proxy XNAT.
+  const env = loadEnv(mode, import.meta.dirname, 'VITE_')
+  const xnatTarget = env.VITE_XNAT_BASE_URL
+
+  return {
   plugins: [
     tailwindcss(),
     react(),
@@ -26,6 +31,17 @@ export default defineConfig({
     },
     cssCodeSplit: false,
   },
+  // Dev-only: when VITE_XNAT_BASE_URL is set, proxy /data and /xapi to that
+  // XNAT instance so the browser sees everything as same-origin (no CORS).
+  // Production builds do not ship this — server.proxy is dev-server only.
+  server: xnatTarget
+    ? {
+        proxy: {
+          '/data': { target: xnatTarget, changeOrigin: true },
+          '/xapi': { target: xnatTarget, changeOrigin: true },
+        },
+      }
+    : undefined,
   test: {
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.ts'],
@@ -43,4 +59,5 @@ export default defineConfig({
       },
     },
   },
+  }
 })
