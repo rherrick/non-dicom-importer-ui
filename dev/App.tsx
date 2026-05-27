@@ -19,6 +19,7 @@ const emptySelection: XnatPickerSelection = {
   projectId: null,
   subject: null,
   session: null,
+  sessionStatus: 'idle',
 }
 
 export default function App() {

@@ -41,7 +41,7 @@ describe('ProjectSelect', () => {
       'http://server/data/projects?format=json',
       expect.objectContaining({
         credentials: 'include',
-        headers: expect.objectContaining({ Accept: 'application/json' }),
+        headers: expect.objectContaining({ Accept: '*/*' }),
       }),
     )
   })

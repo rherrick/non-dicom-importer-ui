@@ -65,7 +65,8 @@ export function FileDropZone({ onFiles, accept, multiple = false, className }: F
             accept={accept?.join(',')}
             onChange={handleChange}
           />
-        </label>
+        </label>{' '}
+        to import non-DICOM data
       </p>
       {accept && <p className="text-xs text-gray-400">Accepted: {accept.join(', ')}</p>}
     </div>

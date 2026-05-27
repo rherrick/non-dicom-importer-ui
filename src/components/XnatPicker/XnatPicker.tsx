@@ -1,8 +1,12 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { ProjectSelect } from '../ProjectSelect'
 import { SubjectSelect, type SubjectSelection } from '../SubjectSelect'
 import { ExperimentSelect } from '../ExperimentSelect'
-import { SessionInput } from '../SessionInput'
+import {
+  SessionInput,
+  type SessionValidateResult,
+  type SessionValidationStatus,
+} from '../SessionInput'
 
 export type XnatPickerMode =
   | 'experiment-browse'
@@ -33,6 +37,12 @@ export interface XnatPickerSelection {
    * Null in all other modes, or when nothing has been selected/entered yet.
    */
   session: string | null
+  /**
+   * Status of the typed session label in `experiment-create` mode (updated on
+   * blur). `'idle'` in all other modes and before the user has blurred away
+   * from a non-empty value.
+   */
+  sessionStatus: SessionValidationStatus
 }
 
 export interface XnatPickerProps {
@@ -41,8 +51,6 @@ export interface XnatPickerProps {
   /** Picker mode. Default: `'experiment-browse'`. */
   mode?: XnatPickerMode
   onChange?: (selection: XnatPickerSelection) => void
-  /** External error shown on the session control, e.g. when a parent validates session creation on submit. */
-  sessionError?: string | null
   className?: string
 }
 
@@ -50,7 +58,6 @@ export function XnatPicker({
   baseUrl = '',
   mode = 'experiment-browse',
   onChange,
-  sessionError,
   className,
 }: XnatPickerProps) {
   const projectSelectId = useId()
@@ -65,19 +72,59 @@ export function XnatPicker({
   const [projectId, setProjectId] = useState('')
   const [subjectSelection, setSubjectSelection] = useState<SubjectSelection>({ type: 'none' })
   const [session, setSession] = useState('')
+  const [sessionStatus, setSessionStatus] = useState<SessionValidationStatus>('idle')
 
+  // For ExperimentSelect (browse mode) — only meaningful with an existing subject.
   const subjectIdentifier =
     subjectSelection.type === 'existing' ? subjectSelection.subjectId : ''
 
-  // Reset the session when the project or selected subject changes.
-  useEffect(() => {
-    setSession('')
-  }, [projectId, subjectIdentifier])
+  // For session-label validation (create mode) — either an existing subject ID
+  // or a typed new-subject label. When the new subject doesn't exist yet the
+  // URL trivially returns 404, which correctly reports the session as free.
+  const subjectForValidation =
+    subjectSelection.type === 'existing'
+      ? subjectSelection.subjectId
+      : subjectSelection.type === 'new'
+        ? subjectSelection.label.trim()
+        : ''
 
-  // Reset state when the mode changes — different modes have different valid selections.
+  // Treat subject-identity changes coarsely so the session doesn't reset on
+  // every keystroke in the new-subject label.
+  const subjectKey =
+    subjectSelection.type === 'existing'
+      ? `existing:${subjectSelection.subjectId}`
+      : subjectSelection.type === 'new'
+        ? 'new'
+        : 'none'
+
+  // Reset the session when the project/mode/subject-kind changes.
   useEffect(() => {
     setSession('')
-  }, [mode])
+    setSessionStatus('idle')
+  }, [projectId, mode, subjectKey])
+
+  // Build the session validator. Only active in experiment-create when there
+  // is enough context to construct the URL; SessionInput treats `undefined`
+  // as "no validation."
+  const validateSession = useMemo<
+    ((value: string, signal: AbortSignal) => Promise<SessionValidateResult>) | undefined
+  >(() => {
+    if (mode !== 'experiment-create' || !projectId || !subjectForValidation) return undefined
+    return async (value, signal) => {
+      const url =
+        `${baseUrl}/data/projects/${encodeURIComponent(projectId)}` +
+        `/subjects/${encodeURIComponent(subjectForValidation)}` +
+        `/experiments/${encodeURIComponent(value.trim())}?format=json`
+      const r = await fetch(url, {
+        credentials: 'include',
+        headers: { Accept: '*/*' },
+        signal,
+      })
+      if (r.status === 404) return 'available'
+      if (r.ok) return 'taken'
+      return 'error'
+    }
+  }, [baseUrl, projectId, subjectForValidation, mode])
 
   const onChangeRef = useRef(onChange)
   useEffect(() => {
@@ -102,8 +149,9 @@ export function XnatPicker({
       projectId: projectId || null,
       subject: subjectValue,
       session: showSession ? session || null : null,
+      sessionStatus,
     })
-  }, [projectId, subjectSelection, session, showSubject, showSession])
+  }, [projectId, subjectSelection, session, sessionStatus, showSubject, showSession])
 
   return (
     <div className={['flex flex-col gap-4', className].filter(Boolean).join(' ')}>
@@ -153,7 +201,8 @@ export function XnatPicker({
               id={sessionInputId}
               value={session}
               onChange={setSession}
-              error={sessionError}
+              validate={validateSession}
+              onValidationChange={setSessionStatus}
             />
           )}
         </div>

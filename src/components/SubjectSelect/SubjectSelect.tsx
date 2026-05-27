@@ -106,7 +106,7 @@ export function SubjectSelect({
       `${baseUrl}/data/projects/${encodeURIComponent(projectId)}/subjects?format=json`,
       {
         credentials: 'include',
-        headers: { Accept: 'application/json' },
+        headers: { Accept: '*/*' },
         signal: ac.signal,
       },
     )
@@ -140,7 +140,7 @@ export function SubjectSelect({
         `${baseUrl}/data/projects/${encodeURIComponent(projectId)}/subjects/${encodeURIComponent(trimmedLabel)}`,
         {
           credentials: 'include',
-          headers: { Accept: 'application/json' },
+          headers: { Accept: '*/*' },
           signal: ac.signal,
         },
       )

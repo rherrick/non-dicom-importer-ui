@@ -31,24 +31,24 @@ function makeFile(name = 'data.zip') {
 }
 
 describe('ImportForm', () => {
-  it('renders the instruction text and all controls', async () => {
+  it('renders all controls', async () => {
     fetchMock.mockResolvedValueOnce(projectsResponse())
     render(<ImportForm baseUrl="http://server" onSubmit={vi.fn()} />)
-    expect(screen.getByText(/drag and drop/i)).toBeInTheDocument()
     expect(screen.getByLabelText('Project:')).toBeInTheDocument()
     expect(screen.getByLabelText('Subject:')).toBeInTheDocument()
     expect(screen.getByLabelText('Session:')).toBeInTheDocument()
+    expect(screen.getByText(/to import non-DICOM data/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /begin upload/i })).toBeInTheDocument()
     await screen.findByRole('option', { name: 'Project One' })
   })
 
-  it('submits with newSubjectLabel after subject + session validation both return 404', async () => {
+  it('submits with newSubjectLabel after subject + session blur validation both return 404', async () => {
     const onSubmit = vi.fn()
     fetchMock
-      .mockResolvedValueOnce(projectsResponse()) // 1: project list
-      .mockResolvedValueOnce(jsonResponse({ ResultSet: { Result: [] } })) // 2: subject list
-      .mockResolvedValueOnce(new Response(null, { status: 404 })) // 3: new-subject validation
-      .mockResolvedValueOnce(new Response(null, { status: 404 })) // 4: session validation
+      .mockResolvedValueOnce(projectsResponse()) // 1: projects
+      .mockResolvedValueOnce(jsonResponse({ ResultSet: { Result: [] } })) // 2: subjects
+      .mockResolvedValueOnce(new Response(null, { status: 404 })) // 3: subject validation
+      .mockResolvedValueOnce(new Response(null, { status: 404 })) // 4: session validation on blur
 
     render(<ImportForm baseUrl="http://server" onSubmit={onSubmit} />)
 
@@ -76,6 +76,14 @@ describe('ImportForm', () => {
     )
 
     fireEvent.change(screen.getByLabelText('Session:'), { target: { value: 'Sess1' } })
+    fireEvent.blur(screen.getByLabelText('Session:'))
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://server/data/projects/P1/subjects/New%20Subj/experiments/Sess1?format=json',
+        expect.anything(),
+      ),
+    )
 
     const file = makeFile()
     fireEvent.change(screen.getByTestId('file-input'), { target: { files: [file] } })
@@ -84,12 +92,7 @@ describe('ImportForm', () => {
     await waitFor(() => expect(button).not.toBeDisabled())
     fireEvent.click(button)
 
-    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
-
-    expect(fetchMock).toHaveBeenLastCalledWith(
-      'http://server/data/projects/P1/subjects/New%20Subj/experiments/Sess1?format=json',
-      expect.anything(),
-    )
+    expect(onSubmit).toHaveBeenCalledTimes(1)
     expect(onSubmit).toHaveBeenCalledWith({
       projectId: 'P1',
       subjectId: null,
@@ -104,7 +107,7 @@ describe('ImportForm', () => {
     fetchMock
       .mockResolvedValueOnce(projectsResponse())
       .mockResolvedValueOnce(subjectsResponse())
-      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(new Response(null, { status: 404 })) // session blur validation
 
     render(<ImportForm baseUrl="http://server" onSubmit={onSubmit} />)
 
@@ -115,18 +118,22 @@ describe('ImportForm', () => {
     fireEvent.change(screen.getByLabelText('Subject:'), { target: { value: 'Subj-A' } })
 
     fireEvent.change(screen.getByLabelText('Session:'), { target: { value: 'Sess2' } })
+    fireEvent.blur(screen.getByLabelText('Session:'))
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://server/data/projects/P1/subjects/Subj-A/experiments/Sess2?format=json',
+        expect.anything(),
+      ),
+    )
+
     fireEvent.change(screen.getByTestId('file-input'), { target: { files: [makeFile()] } })
 
     const button = screen.getByRole('button', { name: /begin upload/i })
     await waitFor(() => expect(button).not.toBeDisabled())
     fireEvent.click(button)
 
-    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
-
-    expect(fetchMock).toHaveBeenLastCalledWith(
-      'http://server/data/projects/P1/subjects/Subj-A/experiments/Sess2?format=json',
-      expect.anything(),
-    )
+    expect(onSubmit).toHaveBeenCalledTimes(1)
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
         projectId: 'P1',
@@ -137,12 +144,12 @@ describe('ImportForm', () => {
     )
   })
 
-  it('flags an existing session and does not submit when validation returns non-404', async () => {
+  it('keeps Begin Upload disabled and shows an error when the session is already taken', async () => {
     const onSubmit = vi.fn()
     fetchMock
       .mockResolvedValueOnce(projectsResponse())
       .mockResolvedValueOnce(subjectsResponse())
-      .mockResolvedValueOnce(jsonResponse({}, 200)) // session is taken
+      .mockResolvedValueOnce(jsonResponse({}, 200)) // session validation: taken
 
     render(<ImportForm baseUrl="http://server" onSubmit={onSubmit} />)
 
@@ -153,29 +160,34 @@ describe('ImportForm', () => {
     fireEvent.change(screen.getByLabelText('Subject:'), { target: { value: 'Subj-A' } })
 
     fireEvent.change(screen.getByLabelText('Session:'), { target: { value: 'Taken' } })
-    fireEvent.change(screen.getByTestId('file-input'), { target: { files: [makeFile()] } })
-
-    const button = screen.getByRole('button', { name: /begin upload/i })
-    await waitFor(() => expect(button).not.toBeDisabled())
-    fireEvent.click(button)
+    fireEvent.blur(screen.getByLabelText('Session:'))
 
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/session.*already exists/i)
+
+    fireEvent.change(screen.getByTestId('file-input'), { target: { files: [makeFile()] } })
+
+    expect(screen.getByRole('button', { name: /begin upload/i })).toBeDisabled()
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
-  it('keeps Begin Upload disabled while the new-subject label is empty', async () => {
+  it('keeps Begin Upload disabled when the session has not yet been blurred', async () => {
     fetchMock
       .mockResolvedValueOnce(projectsResponse())
-      .mockResolvedValueOnce(jsonResponse({ ResultSet: { Result: [] } }))
+      .mockResolvedValueOnce(subjectsResponse())
 
     render(<ImportForm baseUrl="" onSubmit={vi.fn()} />)
+
     await screen.findByRole('option', { name: 'Project One' })
     fireEvent.change(screen.getByLabelText('Project:'), { target: { value: 'P1' } })
+
+    await screen.findByRole('option', { name: 'Subj-A' })
+    fireEvent.change(screen.getByLabelText('Subject:'), { target: { value: 'Subj-A' } })
 
     fireEvent.change(screen.getByLabelText('Session:'), { target: { value: 'Sess' } })
     fireEvent.change(screen.getByTestId('file-input'), { target: { files: [makeFile()] } })
 
+    // No blur on session → validation hasn't run → sessionStatus is still 'idle'.
     expect(screen.getByRole('button', { name: /begin upload/i })).toBeDisabled()
   })
 })

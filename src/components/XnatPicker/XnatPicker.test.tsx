@@ -51,6 +51,7 @@ describe('XnatPicker', () => {
           projectId: 'P1',
           subject: null,
           session: null,
+          sessionStatus: 'idle',
         })
       })
     })
@@ -77,6 +78,7 @@ describe('XnatPicker', () => {
           projectId: 'P1',
           subject: { kind: 'existing', subjectId: 'Subj-A' },
           session: null,
+          sessionStatus: 'idle',
         })
       })
     })
@@ -142,6 +144,7 @@ describe('XnatPicker', () => {
           projectId: 'P1',
           subject: { kind: 'existing', subjectId: 'Subj-A' },
           session: 'Exp-A',
+          sessionStatus: 'idle',
         })
       })
     })
@@ -185,23 +188,84 @@ describe('XnatPicker', () => {
   })
 
   describe('mode: experiment-create', () => {
-    it('renders a session text input and surfaces sessionError', async () => {
-      fetchMock.mockResolvedValueOnce(projects())
+    it('renders a session text input that validates on blur via the experiment URL', async () => {
+      fetchMock
+        .mockResolvedValueOnce(projects())
+        .mockResolvedValueOnce(subjects())
+        .mockResolvedValueOnce(new Response(null, { status: 404 }))
+
+      const onChange = vi.fn()
       render(
-        <XnatPicker
-          mode="experiment-create"
-          baseUrl=""
-          onChange={vi.fn()}
-          sessionError="A session named X already exists."
-        />,
+        <XnatPicker mode="experiment-create" baseUrl="http://server" onChange={onChange} />,
       )
 
       await screen.findByRole('option', { name: 'Proj One' })
+      fireEvent.change(screen.getByLabelText('Project:'), { target: { value: 'P1' } })
+
+      await screen.findByRole('option', { name: 'Subj-A' })
+      fireEvent.change(screen.getByLabelText('Subject:'), { target: { value: 'Subj-A' } })
 
       const sessionInput = screen.getByLabelText('Session:') as HTMLInputElement
       expect(sessionInput.tagName).toBe('INPUT')
-      expect(sessionInput).toHaveAttribute('aria-invalid', 'true')
-      expect(screen.getByRole('alert')).toHaveTextContent(/already exists/i)
+      fireEvent.change(sessionInput, { target: { value: 'NewSession' } })
+      fireEvent.blur(sessionInput)
+
+      await waitFor(() =>
+        expect(fetchMock).toHaveBeenCalledWith(
+          'http://server/data/projects/P1/subjects/Subj-A/experiments/NewSession?format=json',
+          expect.objectContaining({ credentials: 'include' }),
+        ),
+      )
+
+      await waitFor(() => {
+        expect(lastCall<XnatPickerSelection>(onChange)?.sessionStatus).toBe('available')
+      })
+    })
+
+    it('flags an existing session label as taken when blur validation returns 200', async () => {
+      fetchMock
+        .mockResolvedValueOnce(projects())
+        .mockResolvedValueOnce(subjects())
+        .mockResolvedValueOnce(jsonResponse({}, 200))
+
+      const onChange = vi.fn()
+      render(<XnatPicker mode="experiment-create" baseUrl="" onChange={onChange} />)
+
+      await screen.findByRole('option', { name: 'Proj One' })
+      fireEvent.change(screen.getByLabelText('Project:'), { target: { value: 'P1' } })
+
+      await screen.findByRole('option', { name: 'Subj-A' })
+      fireEvent.change(screen.getByLabelText('Subject:'), { target: { value: 'Subj-A' } })
+
+      fireEvent.change(screen.getByLabelText('Session:'), { target: { value: 'Taken' } })
+      fireEvent.blur(screen.getByLabelText('Session:'))
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent(/already exists/i)
+      await waitFor(() => {
+        expect(lastCall<XnatPickerSelection>(onChange)?.sessionStatus).toBe('taken')
+      })
+    })
+
+    it('does not call the validate URL until the user blurs the session input', async () => {
+      fetchMock.mockResolvedValueOnce(projects()).mockResolvedValueOnce(subjects())
+
+      render(<XnatPicker mode="experiment-create" baseUrl="" onChange={vi.fn()} />)
+
+      await screen.findByRole('option', { name: 'Proj One' })
+      fireEvent.change(screen.getByLabelText('Project:'), { target: { value: 'P1' } })
+
+      await screen.findByRole('option', { name: 'Subj-A' })
+      fireEvent.change(screen.getByLabelText('Subject:'), { target: { value: 'Subj-A' } })
+
+      fireEvent.change(screen.getByLabelText('Session:'), { target: { value: 'Typed' } })
+
+      // Only project list + subject list have been fetched. No experiments call yet.
+      expect(
+        fetchMock.mock.calls.some((c) =>
+          String(c[0]).includes('/experiments/Typed'),
+        ),
+      ).toBe(false)
     })
   })
 })

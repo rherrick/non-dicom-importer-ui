@@ -36,7 +36,7 @@ export function ProjectSelect({ baseUrl, value, onChange, id, className }: Proje
     setError(null)
     fetch(`${baseUrl}/data/projects?format=json`, {
       credentials: 'include',
-      headers: { Accept: 'application/json' },
+      headers: { Accept: '*/*' },
       signal: ac.signal,
     })
       .then(async (r) => {

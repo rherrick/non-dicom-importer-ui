@@ -57,7 +57,7 @@ export function ExperimentSelect({
       `${baseUrl}/data/projects/${encodeURIComponent(projectId)}/subjects/${encodeURIComponent(subjectId)}/experiments?format=json`,
       {
         credentials: 'include',
-        headers: { Accept: 'application/json' },
+        headers: { Accept: '*/*' },
         signal: ac.signal,
       },
     )

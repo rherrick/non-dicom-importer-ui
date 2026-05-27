@@ -34,11 +34,14 @@ export function ImportPage() {
 }
 ```
 
-`ImportForm` renders an instruction line, an `XnatPicker` configured for experiment creation, a drop zone that accepts `.zip` / `.tar.gz` / `.tgz`, and a Begin Upload button. The button stays disabled until every field is populated and (for new subjects) the label is validated against the server.
+`ImportForm` renders an `XnatPicker` configured for experiment creation, a drop zone that accepts `.zip` / `.tar.gz` / `.tgz`, and a Begin Upload button. The button stays disabled until every field is populated, the new-subject label (if used) is validated as available, and the session label is validated as available.
 
-When the user clicks Begin Upload, `ImportForm` validates the session label against `GET /data/projects/<P>/subjects/<S>/experiments/<SESSION>?format=json`. Only a `404` from that endpoint is treated as "available" — anything else surfaces an inline error on the session field and the form does not submit.
+Validation happens up-front:
 
-`onSubmit` is therefore only called with vetted data:
+- **Subject label** — debounced fetch as the user types in the "New subject…" input.
+- **Session label** — fetched when focus leaves the session input (tab away, drop a file, click anywhere outside) or when the user presses Enter inside the field.
+
+Both calls treat a `404` as "available" and anything else as taken / error. By the time Begin Upload is enabled, all validation has already passed, so `onSubmit` is called with vetted data:
 
 ```ts
 interface ImportFormSubmitData {
@@ -91,6 +94,7 @@ interface XnatPickerSelection {
   projectId: string | null
   subject: XnatSubjectValue | null
   session: string | null
+  sessionStatus: SessionValidationStatus  // 'idle' outside experiment-create
 }
 
 type XnatSubjectValue =
@@ -102,25 +106,28 @@ type XnatSubjectValue =
       // i.e. the new subject name is free to create.
       status: 'idle' | 'checking' | 'available' | 'taken' | 'error'
     }
+
+type SessionValidationStatus =
+  | 'idle' | 'checking' | 'available' | 'taken' | 'error'
 ```
 
 - `subject` is always `null` in `project-browse` mode.
 - `subject.kind` is always `'existing'` in browse modes; in create modes it can be either.
 - `session` is the selected experiment ID/label in `experiment-browse`, the typed label in `experiment-create`, and `null` everywhere else.
+- `sessionStatus` is only meaningful in `experiment-create` mode, where it reflects the result of validating the typed label on blur (`available` means the label is free to create). It stays `'idle'` in all other modes.
 
 ### Props
 
 ```ts
 interface XnatPickerProps {
-  baseUrl?: string                    // XNAT root; '' (default) = same origin
-  mode?: XnatPickerMode               // default 'experiment-browse'
+  baseUrl?: string          // XNAT root; '' (default) = same origin
+  mode?: XnatPickerMode     // default 'experiment-browse'
   onChange?: (s: XnatPickerSelection) => void
-  sessionError?: string | null        // external error to show on the session control
   className?: string
 }
 ```
 
-The `sessionError` prop is the integration point for external validation: `ImportForm` uses it to surface "session already exists" after the Begin Upload click.
+In `experiment-create` mode the picker validates the typed session label automatically on blur — there is no external error-injection hook because validation lives inside the control. Consumers gate "submit" on `selection.sessionStatus === 'available'`.
 
 ## FileDropZone
 
@@ -145,7 +152,7 @@ interface FileDropZoneProps {
 | `GET /data/projects/<P>/subjects?format=json` | populate subject list | `XnatPicker` |
 | `GET /data/projects/<P>/subjects/<label>` | verify a typed new-subject label (404 = available, anything else = taken) | `XnatPicker` (create modes) |
 | `GET /data/projects/<P>/subjects/<S>/experiments?format=json` | populate experiment list | `XnatPicker` (`experiment-browse`) |
-| `GET /data/projects/<P>/subjects/<S>/experiments/<SESSION>?format=json` | verify a typed session label on submit (404 = available) | `ImportForm` |
+| `GET /data/projects/<P>/subjects/<S>/experiments/<SESSION>?format=json` | verify a typed session label on blur / Enter (404 = available) | `XnatPicker` (`experiment-create`) |
 
 All requests include `credentials: 'include'` and `Accept: application/json`. The library knows nothing about auth — the containing environment (XNAT web app, Electron shell, etc.) provides the session.
 
